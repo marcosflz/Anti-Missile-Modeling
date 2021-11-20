@@ -1,0 +1,401 @@
+Clear["Global`*"]
+
+(*Data may be changed*)
+
+h = 10000; (*Flying Missile Height*)
+vm = 1000/3.6; (*Missile Speed*)
+tInt = 10000;
+
+amLaunch = {0, 100000, 0};
+
+mRocket = 2000; (*Anti-Missile Mass*)
+mFuel = 500; (*Fuel mass loaded*)
+thrs = 10; (*Mass flow from Anti-Missile*)
+uRel = 500; (*Relative speed of the mass flow exhausted from the \
+rocket*)
+m0 = mRocket + mFuel; (*Total init Mass*)
+
+g = 9.8; (*Gravity*)
+\[Gamma] = 0.25;(*Aerodynamic Coefficient*)
+d = 0.3;(*Anti-Missile diameter*)
+
+(*Cruise Missile Equation*)
+
+mpos[{x_, y_, z_}, t_] = {vm*t, vm*t, h};
+xm[t_] = vm*t;
+ym[t_] = vm*t;
+zm[t_] = h;
+
+(*Trayectory Vectors of Anti-Missile*)
+
+aUvector[t_] = {
+   ((xm[t] - 
+       xa[t])/((xm[t] - xa[t])^2 + (ym[t] - ya[t])^2 + (zm[t] - 
+         za[t])^2)^((1/2))),
+   ((ym[t] - 
+       ya[t])/((xm[t] - xa[t])^2 + (ym[t] - ya[t])^2 + (zm[t] - 
+         za[t])^2)^((1/2))),
+   ((zm[t] - 
+       za[t])/((xm[t] - xa[t])^2 + (ym[t] - ya[t])^2 + (zm[t] - 
+         za[t])^2)^((1/2)))
+   };
+
+(*Anti-Missile trayectory equations*)
+
+vax = xa'[t] == va[t]*aUvector[t][[1]];
+
+vay = ya'[t] == va[t]*aUvector[t][[2]];
+
+vaz = za'[t] == va[t]*aUvector[t][[3]];
+
+\[CapitalSigma]F = -\[Gamma]*d^2*va[t]^2 - m[t]*g*aUvector[t][[3]] - 
+    uRel*m'[t] == m[t]*va'[t];
+
+dm = m[t] == m0 - thrs*t;
+
+distance = 
+  dist[t] == ((xm[t] - xa[t])^2 + (ym[t] - ya[t])^2 + (zm[t] - 
+       za[t])^2)^(1/2);
+
+condInit = {
+   xa[0] == amLaunch[[1]],
+   ya[0] == amLaunch[[2]],
+   za[0] == amLaunch[[3]],
+   m[0] == m0,
+   va[0] == 0
+   };
+
+{xat, yat, zat, vat, mat, distt} = NDSolveValue[
+   {vax, vay, vaz, \[CapitalSigma]F, dm, distance, condInit,
+    WhenEvent[m[t] == mRocket, thrs = 0; tThrs = t],
+    WhenEvent[dist[t] < 1, tFlight = t; "StopIntegration"],
+    WhenEvent[dist'[t] > 0, tFlight = t; "StopIntegration"]},
+   {xa, ya, za, va, m, dist},
+   {t, 0, tInt}, MaxSteps -> Infinity
+   ];
+
+\[Gamma]D[
+   t_] = {\[Gamma]*d^2*vat[t]^2, \[Gamma]*d^2*xat'[t]^2, \[Gamma]*d^2*
+    yat'[t]^2, \[Gamma]*d^2*zat'[t]^2};
+
+(*Anti-Missil fall equations*)
+
+aFallvector[t_] = { (*Any orthogonal vector to drag*)
+   yaF'[t],
+   -xaF'[t] - zaF'[t],
+   yaF'[t]
+   };
+
+vaF = (xaF'[t]^2 + yaF'[t]^2 + zaF'[t]^2)^(1/2);
+
+distTflight = ((xm[tFlight] - xat[tFlight])^2 + (ym[tFlight] - 
+      yat[tFlight])^2 + (zm[tFlight] - zat[tFlight])^2)^(1/2);
+
+xFall = -\[Gamma]*d^2*vaF*xaF'[t] + \[Gamma]*d^2*aFallvector[t][[1]]*
+     vaF == mRocket*xaF''[t];
+yFall = -\[Gamma]*d^2*vaF*yaF'[t] + \[Gamma]*d^2*aFallvector[t][[2]]*
+     vaF == mRocket*yaF''[t];
+zFall = -\[Gamma]*d^2*vaF*zaF'[t] + \[Gamma]*d^2*aFallvector[t][[3]]*
+     vaF - mRocket*g == mRocket*zaF''[t];
+
+
+condInitF = {
+   xaF[tFlight] == xat[tFlight],
+   yaF[tFlight] == yat[tFlight],
+   zaF[tFlight] == zat[tFlight],
+   
+   xaF'[tFlight] == xat'[tFlight],
+   
+   yaF'[tFlight] == yat'[tFlight],
+   
+   zaF'[tFlight] == zat'[tFlight]
+   };
+
+{xaFt, yaFt, zaFt} = NDSolveValue[
+   {xFall, yFall, zFall, condInitF,
+    WhenEvent[zaF[t] == 0.1, tFall = t; "StopIntegration"]},
+   {xaF, yaF, zaF},
+   {t, tFlight, tInt}, MaxSteps -> Infinity
+   ];
+
+vaFt[t_] = (xaFt'[t]^2 + yaFt'[t]^2 + zaFt'[t]^2)^(1/2);
+\[Gamma]DFlight[
+   t_] = {\[Gamma]*d^2*vat[t]^2, \[Gamma]*d^2*xat'[t]^2, \[Gamma]*d^2*
+    yat'[t]^2, \[Gamma]*d^2*zat'[t]^2};
+\[Gamma]DFall[
+   t_] = {\[Gamma]*d^2*vaFt[t]^2, \[Gamma]*d^2*xaFt'[t]^2, \[Gamma]*
+    d^2*yaFt'[t]^2, \[Gamma]*d^2*zaFt'[t]^2};
+
+(*Parameter Discretization*)
+vatn[t_] = (xat'[t]^2 + yat'[t]^2 + zat'[t]^2)^(1/2);
+If[distt[tFlight] < 1, maxVelFlight = vat[tFlight], 
+  maxVelFlight = FindMaximum[vatn[t], {t, 0, 0, tFlight}][[1]]];
+maxVelFall = vaFt[tEnd];
+If[distt[tFlight] < 1, tEnd = tFlight, tEnd = tFall];
+If[maxVelFlight > maxVelFall, maxVel = maxVelFlight, 
+  maxVel = maxVelFall];
+
+(*3D Plot*)
+
+TabView[{
+  "Trayectory" ->
+   If[distt[tFlight] < 1,
+    
+    flight = 
+     ParametricPlot3D[{{xat[t], yat[t], 
+         zat[t]}, {mpos[{x, y, z}, t]}}, {t, 0, tEnd},
+       PlotLegends -> {"Anti-Missile Missile", "Cruise Missile"},
+       PlotRange -> Automatic, SphericalRegion -> True,
+       Axes -> {True, True, False}, ImageSize -> Large] /. 
+      Line[coords_] -> {Arrow[coords]}
+    ,
+    
+    flight = 
+     ParametricPlot3D[{{xat[t], yat[t], 
+        zat[t]}, {mpos[{x, y, z}, t]}}, {t, 0, tFlight},
+      PlotRange -> Automatic, SphericalRegion -> True,
+      Axes -> {True, True, False}];
+    
+    fall = 
+     ParametricPlot3D[{{xaFt[t], yaFt[t], 
+         zaFt[t]}, {mpos[{x, y, z}, t]}}, {t, tFlight, tEnd},
+       PlotLegends -> {"Anti-Missile Missile", "Cruise Missile"},
+       PlotRange -> Automatic, SphericalRegion -> True,
+       Axes -> {True, True, False}] /. 
+      Line[coords_] -> {Arrow[coords]};
+    
+    Show[flight, fall, ImageSize -> Large]
+    ]
+  
+  , "Trayectory (t)" ->(*Manipulate*)
+   
+   Manipulate[
+    
+    If[FlightTime < tFlight,
+     
+     flightM = 
+      ParametricPlot3D[{{xat[t], yat[t], 
+          zat[t]}, {mpos[{x, y, z}, t]}}, {t, 0, FlightTime},
+        PlotLegends -> {"Anti-Missile Missile", "Cruise Missile"},
+        PlotRange -> Automatic, SphericalRegion -> True,
+        Axes -> {True, True, False}, ImageSize -> Large] /. 
+       Line[coords_] -> {Arrowheads[{0, 0.03}], Arrow[coords]}
+     ,
+     
+     flightM = 
+      ParametricPlot3D[{{xat[t], yat[t], 
+         zat[t]}, {mpos[{x, y, z}, t]}}, {t, 0, tFlight},
+       PlotLegends -> {"Anti-Missile Missile", "Cruise Missile"},
+       PlotRange -> Automatic, SphericalRegion -> True,
+       Axes -> {True, True, False}, ImageSize -> Large];
+     
+     fallM = 
+      ParametricPlot3D[{{xaFt[t], yaFt[t], 
+          zaFt[t]}, {mpos[{x, y, z}, t]}}, {t, tFlight, FlightTime},
+        PlotLegends -> {"Anti-Missile Missile", "Cruise Missile"},
+        PlotRange -> Automatic, SphericalRegion -> True,
+        Axes -> {True, True, False}, ImageSize -> Large] /. 
+       Line[coords_] -> {Arrowheads[{0, 0.03}], Arrow[coords]};
+     
+     Show[flightM, fallM]
+     
+     ], {FlightTime, 0.01, tEnd - 0.001, Appearance -> "Labeled"}]
+  
+  , "Mass" ->(*Mass (t)*)
+   Framed[Show[
+     Plot[mat[t], {t, 0, tThrs},
+      PlotStyle -> Gray,
+      ImageSize -> Large,
+      AxesLabel -> {"t (s)", "mass (kg)"},
+      ImageMargins -> Large,
+      Filling -> Bottom,
+      PlotTheme -> "Scientific", GridLines -> Automatic, 
+      Axes -> False],
+     PlotLabel -> Style[Row[{"Thrust Time = ", tThrs, "s"}], 25]],
+    FrameMargins -> 15]
+  
+  , "Velocity" ->(*Velocity (t)*)
+   
+   If[distt[tFlight] < 1,
+    Framed[
+     Show[
+      Plot[vat[t], {t, 0, tEnd},
+       PlotStyle -> Green,
+       ImageSize -> Large,
+       ImageMargins -> Large,
+       PlotLegends -> {"Flight Speed"}, PlotTheme -> "Scientific", 
+       GridLines -> Automatic, Axes -> False],
+      
+      ListPlot[{{tEnd, vat[tEnd]}},
+       PlotStyle -> Red,
+       PlotLegends -> {"Explosion"},
+       Filling -> Bottom],
+      
+      PlotLabel -> Style["Velocity (t)", 25]
+      
+      ], FrameMargins -> 15]
+    
+    ,
+    Framed[
+     Show[
+      Plot[vat[t], {t, 0, tFlight},
+       PlotStyle -> Green,
+       PlotLegends -> {"Flight Speed"},
+       PlotTheme -> "Scientific",
+       GridLines -> Automatic, Axes -> False],
+      
+      Plot[vaFt[t], {t, tFlight, tEnd},
+       PlotStyle -> Red,
+       PlotLegends -> {"Flight Fall"}],
+      
+      ListPlot[{{tFlight, vat[tFlight]}},
+       PlotStyle -> Orange,
+       PlotLegends -> {"Starting Fall Point"}],
+      
+      PlotRange -> {{0, tEnd}, {0, maxVel}},
+      ImageSize -> Large,
+      ImageMargins -> Large,
+      PlotStyle -> Thickness[1],
+      PlotLabel -> Style["Velocity (t)", 25]]
+     , FrameMargins -> 15]
+    ]
+  
+  , "Height" ->(*Height (t)*)
+   
+   If[distt[tFlight] < 1,
+    Framed[
+     Show[
+      Plot[zat[t], {t, 0, tEnd},
+       PlotStyle -> Blue,
+       ImageSize -> Large,
+       ImageMargins -> Large,
+       PlotLegends -> {"Height in Flight"},
+       AxesLabel -> {"Height(m)", "t(s)"},
+       Filling -> Bottom,
+       PlotTheme -> "Scientific", GridLines -> Automatic, 
+       Axes -> False],
+      
+      ListPlot[{{tEnd, zat[tEnd]}},
+       PlotStyle -> Red,
+       PlotLegends -> {"Explosion"},
+       Filling -> Bottom],
+      PlotLabel -> Style["Height (t)", 25]
+      ], FrameMargins -> 15]
+    
+    ,
+    Framed[
+     Show[
+      Plot[zat[t], {t, 0, tFlight},
+       PlotStyle -> Blue,
+       PlotLegends -> {"Height in Flight"},
+       Filling -> Bottom, PlotTheme -> "Scientific", 
+       GridLines -> Automatic, Axes -> False],
+      
+      Plot[zaFt[t], {t, tFlight, tEnd},
+       PlotStyle -> Brown,
+       PlotLegends -> {"Height in Fall"},
+       Filling -> Bottom, PlotTheme -> "Scientific", 
+       GridLines -> Automatic, Axes -> False],
+      
+      ListPlot[{{tFlight, zat[tFlight]}},
+       PlotStyle -> Orange,
+       PlotLegends -> {"Starting Fall Point"},
+       Filling -> Bottom, PlotTheme -> "Scientific", 
+       GridLines -> Automatic, Axes -> False],
+      
+      PlotRange -> {{0, tEnd}, {0, h}},
+      ImageSize -> Large,
+      ImageMargins -> Large,
+      AxesLabel -> {"t(s)", "Height(m)"},
+      PlotStyle -> Thickness[1],
+      PlotLabel -> Style["Height (t)", 25]
+      ]
+     , FrameMargins -> 15
+     ]
+    ]
+  , "Drag" ->(*Drag(t)*)
+   
+   If[distt[tFlight] < 1,
+    Framed[
+     Show[
+      Plot[\[Gamma]D[t][[1]], {t, 0, tEnd}, PlotStyle -> Black, 
+       PlotRange -> All, PlotLegends -> {"Drag Module (N)"}, 
+       PlotTheme -> "Scientific", GridLines -> Automatic, 
+       Axes -> False],
+      Plot[\[Gamma]D[t][[2]], {t, 0, tEnd}, PlotStyle -> Red, 
+       PlotRange -> All, PlotLegends -> {"Drag - X (N)"}, 
+       PlotTheme -> "Scientific", GridLines -> Automatic, 
+       Axes -> False],
+      Plot[\[Gamma]D[t][[3]], {t, 0, tEnd}, PlotStyle -> Green, 
+       PlotRange -> All, PlotLegends -> {"Drag - Y (N)"}, 
+       PlotTheme -> "Scientific", GridLines -> Automatic, 
+       Axes -> False],
+      Plot[\[Gamma]D[t][[4]], {t, 0, tEnd}, PlotStyle -> Blue, 
+       PlotRange -> All, PlotLegends -> {"Drag - Z (N)"}, 
+       PlotTheme -> "Scientific", GridLines -> Automatic, 
+       Axes -> False],
+      
+      ParametricPlot[{tEnd, h}, {h, 0, \[Gamma]D[tEnd][[1]]}, 
+       PlotStyle -> {Thickness[0.005], Lighter[Orange]}],
+      ListPlot[{{tEnd, \[Gamma]D[tEnd][[1]]}, {tEnd, \[Gamma]D[tEnd][[
+          2]]}, {tEnd, \[Gamma]D[tEnd][[3]]}, {tEnd, \[Gamma]D[tEnd][[
+          4]]}}, PlotStyle -> {Thick, Orange}, 
+       PlotLegends -> {"Starting Fall Points"}, 
+       PlotTheme -> "Scientific"],
+      
+      ImageSize -> Large,
+      ImageMargins -> Large,
+      AxesLabel -> {"t(s)", "Newtons (N)"},
+      PlotStyle -> Thickness[1],
+      PlotLabel -> Style["Drag in Flight", 25]
+       ], FrameMargins -> 15]
+    ,
+    
+    Framed[
+     Show[
+      Plot[\[Gamma]DFlight[t][[1]], {t, 0, tFlight}, 
+       PlotStyle -> Black, PlotRange -> All, 
+       PlotLegends -> {"Drag Module (N)"}, PlotTheme -> "Scientific", 
+       GridLines -> Automatic, Axes -> False],
+      Plot[\[Gamma]DFall[t][[1]], {t, tFlight, tEnd}, 
+       PlotStyle -> Black, PlotRange -> All],
+      
+      Plot[\[Gamma]DFlight[t][[2]], {t, 0, tFlight}, PlotStyle -> Red,
+        PlotRange -> All, PlotLegends -> {"Drag - X (N)"}, 
+       PlotTheme -> "Scientific"],
+      Plot[\[Gamma]DFall[t][[2]], {t, tFlight, tEnd}, 
+       PlotStyle -> Red, PlotRange -> All],
+      
+      Plot[\[Gamma]DFlight[t][[3]], {t, 0, tFlight}, 
+       PlotStyle -> Green, PlotRange -> All, 
+       PlotLegends -> {"Drag - Y (N)"}, PlotTheme -> "Scientific"],
+      Plot[\[Gamma]DFall[t][[3]], {t, tFlight, tEnd}, 
+       PlotStyle -> Green, PlotRange -> All],
+      
+      Plot[\[Gamma]DFlight[t][[4]], {t, 0, tFlight}, 
+       PlotStyle -> Blue, PlotRange -> All, 
+       PlotLegends -> {"Drag - Z (N)"}, PlotTheme -> "Scientific"],
+      Plot[\[Gamma]DFall[t][[4]], {t, tFlight, tEnd}, 
+       PlotStyle -> Blue, PlotRange -> All],
+      
+      ParametricPlot[{tFlight, h}, {h, 
+        0, \[Gamma]DFlight[tFlight][[1]]}, 
+       PlotStyle -> {Thickness[0.005], Lighter[Orange]}],
+      ListPlot[{{tFlight, \[Gamma]DFlight[tFlight][[
+          1]]}, {tFlight, \[Gamma]DFlight[tFlight][[
+          2]]}, {tFlight, \[Gamma]DFlight[tFlight][[
+          3]]}, {tFlight, \[Gamma]DFlight[tFlight][[4]]}}, 
+       PlotStyle -> {Thick, Orange}, 
+       PlotLegends -> {"Starting Fall Points"}, 
+       PlotTheme -> "Scientific"],
+      
+      ImageSize -> Large,
+      ImageMargins -> Large,
+      AxesLabel -> {"t(s)", "Newtons (N)"},
+      PlotStyle -> Thickness[1],
+      PlotLabel -> Style["Drag in Flight", 25],
+      Alignment -> {Automatic, Center}]
+     , FrameMargins -> 15]
+    ]
+  }
+ ]
