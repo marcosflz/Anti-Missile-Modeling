@@ -7,3 +7,11 @@ i tried it harder by solving this problem at a 3D region and considering all the
 I also integrated the Tsiolkovski's rocket equation by its differencial form into the differential equations system.
 By discretizing all the posible cases in which the Anti-Missile might catch the Cruise missile or not i get to some of the results showed up here.
 
+![](https://github.com/marcosflz/Anti-Missile-Modeling/blob/main/missile_github2.JPG)
+![](https://github.com/marcosflz/Anti-Missile-Modeling/blob/main/missile_github1.JPG)
+![](https://github.com/marcosflz/Anti-Missile-Modeling/blob/main/Interception_github.gif)
+![](https://github.com/marcosflz/Anti-Missile-Modeling/blob/main/missile_github3.JPG)
+![](https://github.com/marcosflz/Anti-Missile-Modeling/blob/main/missile_github4.JPG)
+![](https://github.com/marcosflz/Anti-Missile-Modeling/blob/main/missile_github5.JPG)
+
+
